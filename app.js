@@ -72,7 +72,7 @@ async function dispatch(text){
 }
 function syncComposer(){
  const text=$('#orderInput').value.trim(),type=W.commandType(text);
- const options=editing?['Исправление','Сохранить изменения','Заменится выбранный заказ. Остатки пересчитаются.']:!text||type==='order'?['По персонам','Разобрать заказ','Сокращай и пиши как удобно. Каждая персона — с нового номера.']:type==='stock'||type==='steaks'?['Наличие','Обновить наличие','Стоп, гоу и количество можно заполнить одной командой.']:type==='rush'?['Ожидание','Переключить режим','Изменится ожидание для заказов.']:$('#allergenInput').value.trim()&&Allergy.categoryQuery(text)?['Подбор блюд','Подобрать','Рекомендации обновляются с учётом исключённых ингредиентов.']:['Подсказка',text.includes('??')?'Проверить наличие':'Показать','Один ? — состав. Два ?? — наличие на сегодня.'];
+ const options=editing?['Исправление','Сохранить изменения','Заменится выбранный заказ. Остатки пересчитаются.']:!text||type==='order'?['По персонам','Разобрать заказ','Сокращай и пиши как удобно. Номер гостя и блюда. Следующий гость — с новой строки; двоеточие не нужно.']:type==='stock'||type==='steaks'?['Наличие','Обновить наличие','Стоп, гоу и количество можно заполнить одной командой.']:type==='rush'?['Ожидание','Переключить режим','Изменится ожидание для заказов.']:$('#allergenInput').value.trim()&&Allergy.categoryQuery(text)?['Подбор блюд','Подобрать','Рекомендации обновляются с учётом исключённых ингредиентов.']:['Подсказка',text.includes('??')?'Проверить наличие':'Показать','Один ? — состав. Два ?? — наличие на сегодня.'];
  $('#inputMode').textContent=options[0];$('#submitOrder').innerHTML=options[1]+' <span aria-hidden="true">↗</span>';$('#inputHint').textContent=options[2];$('#cancelEdit').hidden=!editing;renderSuggestions();
 }
 function cancelEditing(){editing=null;$('#orderInput').value='';$('#allergenInput').value='';$('#orderError').textContent='';syncComposer();}
@@ -106,7 +106,7 @@ $('#orderInput').addEventListener('input',syncComposer);
 $('#allergenInput').addEventListener('input',syncComposer);$('#recommendCategory').addEventListener('change',renderSuggestions);
 $('#orderInput').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')submitOrder()});
 $('#cancelEdit').onclick=cancelEditing;
-$('#exampleButton').onclick=()=>{editing=null;$('#orderInput').value='1: рыбник, бифштекс\n2: рыбник, цез с крев';syncComposer();$('#orderInput').focus()};
+$('#exampleButton').onclick=()=>{editing=null;$('#orderInput').value='1 рыбник, бифштекс\n2 рыбник, цез с крев';syncComposer();$('#orderInput').focus()};
 $('#historyButton').onclick=()=>{renderHistory();if(!$('#history').hidden)$('#history').scrollIntoView({behavior:'smooth',block:'start'})};
 $('#rushTop').onclick=()=>tab('settings');
 $('.brand').onclick=e=>{e.preventDefault();tab('order');};

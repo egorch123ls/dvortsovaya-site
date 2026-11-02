@@ -51,3 +51,19 @@ test('thirty supported groups recognize expanded exclusions and compound ingredi
  assert.equal(A.assess({name:'Вино',ingredients:'Виноград'},A.parse('сульфиты')).status,'unknown');
  assert.equal(A.assess({name:'Молоко безлактозное',ingredients:'Безлактозное коровье молоко'},A.parse('молоко')).status,'contains');
 });
+
+test('guest numbers without colon support newlines, edits and preserve quantities and steak weights',()=>{
+ const plain=W.parseOrder('1 рыбник, бифштекс\n2 рыбник цез с крев');
+ const colon=W.parseOrder('1: рыбник, бифштекс 2: рыбник цез с крев');
+ assert.deepEqual(plain.items,colon.items);assert.equal(plain.persons,2);
+ assert.equal(W.commandType('1 рыбник\n2 цез с крев'),'order');
+ assert.equal(W.commandType('исправить 1 рыбник\n2 цез с крев'),'order');
+ assert.equal(W.parseOrder('1\nрыбник\n2\nцез с крев').items.length,2);
+ assert.equal(W.parseOrder('1 рыбник\n2: цез с крев').items.length,2);
+ const weight=W.parseOrder('1 стейк 190\n2 2x рыбник');
+ assert.equal(weight.items[0].weight,190);assert.equal(weight.items[1].qty,2);
+ assert.equal(W.parseOrder('1 рыбник\n2 x рыбник').persons,1);
+ assert.equal(W.commandType('ростбиф 6'),'stock');assert.equal(W.commandType('стейк 190 гоу'),'steaks');
+ assert.throws(()=>W.parseOrder('1 рыбник\n1 чиз'));
+ assert.throws(()=>W.parseOrder('1 рыбник\n2'));
+});

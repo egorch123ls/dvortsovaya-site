@@ -62,7 +62,7 @@ function recommend(state,text,category='',query=''){
  const restrictions=parse(text),scope=category||categoryQuery(query),found=W.resolve(query.replace(/[?]/g,''));
  const list=W.items.filter(d=>!['gift','event'].includes(d.category)&&(!scope||d.section===scope||d.category===scope));
  const result={restrictions,not_listed:[],unknown:[],contains:[],stopped:0};
- for(const d of list){if(!scope&&query&&!/\d\s*:/.test(query)&&found.dish&&d.category!==W.byId[found.dish].category)continue;if(W.stockStatus(state,d.id).status==='stop'){result.stopped++;continue;}const assessment=assess(d,restrictions);result[assessment.status].push({dish:d,assessment});}
+ for(const d of list){if(!scope&&query&&W.commandType(query)!=='order'&&found.dish&&d.category!==W.byId[found.dish].category)continue;if(W.stockStatus(state,d.id).status==='stop'){result.stopped++;continue;}const assessment=assess(d,restrictions);result[assessment.status].push({dish:d,assessment});}
  return result;
 }
 function orderChecks(order){const restrictions=parse(order.exclusionsText||'');if(!restrictions.length)return [];return order.items.map(row=>({row,dish:W.byId[row.dish],assessment:row.dish?assess(W.byId[row.dish],restrictions):{status:'unknown',found:[],uncertain:['Блюдо не распознано.']}}));}

@@ -39,9 +39,12 @@ function segment(text,guest){
  }
  const raw=solve(0).rows,rows=[];for(const r of raw){if(!r.dish&&rows.length&&!rows[rows.length-1].dish)rows[rows.length-1].query+=' '+r.query;else rows.push(r)}for(const row of rows)if(!row.dish)row.choices=resolve(row.query).choices;return rows;
 }
+function guestMarkers(text){
+ return [...String(text).matchAll(/(?:^|\s)(\d{1,3})[ \t]*:|^[ \t]*(?:исправить[ \t]+)?(\d{1,3})(?=[ \t]+[а-яa-z0-9]|[ \t]*\r?$)(?![ \t]*[xх×](?:\s|$))/gmi)].map(m=>{m[1]=m[1]||m[2];return m});
+}
 function parseOrder(text){
  if(typeof text!=='string'||text.length>6000)throw Error('Заказ слишком длинный. Максимум 6000 символов.');
- const matches=[...text.matchAll(/(?:^|\s)(\d{1,3})\s*:/g)];if(!matches.length)throw Error('Напиши по персонам: 1: рыбник 2: салат с уткой');
+ const matches=guestMarkers(text);if(!matches.length)throw Error('Напиши номер и блюда: 1 рыбник, затем с новой строки 2 салат с уткой');
  let rows=[],persons=0;const seen=new Set();for(let i=0;i<matches.length;i++){const g=+matches[i][1];if(g<1||g>50||seen.has(g))throw Error('Номера персон — от 1 до 50, каждый номер один раз.');seen.add(g);persons=Math.max(persons,g);const start=matches[i].index+matches[i][0].length,end=i+1<matches.length?matches[i+1].index:text.length;const part=text.slice(start,end).trim();if(!part)throw Error('У персоны '+g+' не указаны блюда.');for(const chunk of part.split(/[,;\n]+/).filter(x=>x.trim()))rows.push(...segment(chunk,g));}
  const explicit=text.slice(0,matches[0].index).match(/(?:персон[аы]?\s*(\d+)|(\d+)\s*персон)/i);if(explicit){const n=+(explicit[1]||explicit[2]);if(n<persons||n>50)throw Error('Число персон не соответствует номерам.');persons=n}
  if(rows.length>100)throw Error('В заказе слишком много позиций.');return {persons,items:rows,raw:text,status:'active',created:Date.now()};
@@ -170,7 +173,7 @@ function stockCommand(state,text,defaultStatus=null){
   for(const id of new Set(ids)){setStock(copy,id,status,qty);messages.push(byId[id].name+' — '+(status==='go'?'добавлено в гоу · ':'')+stockLabel(stockStatus(copy,id)))}
  }if(!messages.length)throw Error('Напиши хотя бы одну позицию.');state.stock=copy.stock;return messages;
 }
-function commandType(text){const q=norm(text);if(/\d\s*:/.test(text))return 'order';if(['старт повыш','стоп повыш'].includes(q))return 'rush';if(text.includes('?'))return 'lookup';if(/^стейки?\s+/.test(q)&&/\d/.test(q))return 'steaks';if(/(?:^| )(?:стоп|гоу|го|есть|нет)(?: |$)|без огран|забрала|забрал/.test(q)||/\s\d+(?: (?:шот(?:а|ов)?|шт|порц(?:ии|ий|ия)?))?$/.test(q))return 'stock';return 'lookup'}
+function commandType(text){const q=norm(text);if(guestMarkers(text).length)return 'order';if(['старт повыш','стоп повыш'].includes(q))return 'rush';if(text.includes('?'))return 'lookup';if(/^стейки?\s+/.test(q)&&/\d/.test(q))return 'steaks';if(/(?:^| )(?:стоп|гоу|го|есть|нет)(?: |$)|без огран|забрала|забрал/.test(q)||/\s\d+(?: (?:шот(?:а|ов)?|шт|порц(?:ии|ий|ия)?))?$/.test(q))return 'stock';return 'lookup'}
 function orderWarnings(order,state){const warnings=[...(order.warnings||[])];for(const row of order.items){if(!row.dish||row.dish==='marbled-steak')continue;if(!activeIds.has(row.dish)){warnings.push('Больше нет в актуальном меню: '+byId[row.dish].name);continue;}const stock=stockStatus(state,row.dish);const accounted=(order.itemReservations||[]).some(r=>r.dish===row.dish);if(stock.status==='stop'&&!accounted)warnings.push('В СТОПЕ: '+byId[row.dish].name)}return [...new Set(warnings)]}
 function chooseDish(state,orderId,index,dish){if(!activeIds.has(dish))throw Error('Блюдо не найдено в актуальном меню.');const previous=state.orders.find(o=>o.id===orderId);if(!previous||previous.status!=='active'||previous.items[index]?.dish!==null)throw Error('Позиция уже уточнена.');const next=clone(state),order=clone(previous);order.items[index]={...order.items[index],dish,query:byId[dish].name,choices:[]};order.raw=Array.from({length:order.persons},(_,i)=>(i+1)+': '+order.items.filter(r=>r.guest===i+1).map(r=>(r.qty>1?r.qty+'х ':'')+(r.weight?'стейк '+r.weight:r.dish?byId[r.dish].name:r.query)).join(', ')).join('\n');reconcile(next,order,previous);reconcileItems(next,order,previous);next.orders[next.orders.findIndex(o=>o.id===orderId)]=order;Object.assign(state,next);return order}
 
