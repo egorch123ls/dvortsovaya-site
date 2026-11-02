@@ -55,7 +55,7 @@ function migrateState(input){
  const state=clone(input);state.schema=3;state.revision=Number.isSafeInteger(state.revision)?state.revision:0;
  if(state.orders.length>5000)throw Error('Слишком много заказов в файле.');
  for(const mode of ['normal','rush']){if(!state.waits[mode]||typeof state.waits[mode]!=='object')throw Error('Нет настроек ожидания.');for(const cat of Object.keys(data.config[mode])){if(state.waits[mode][cat]===undefined)state.waits[mode][cat]=clone(data.config[mode][cat]);if(!validRange(state.waits[mode][cat]))throw Error('Некорректное время ожидания.')}}
- const ids=new Set();for(const o of state.orders){if(!Number.isSafeInteger(o.id)||o.id<1||ids.has(o.id)||!Number.isInteger(o.persons)||o.persons<1||o.persons>50||!Array.isArray(o.items)||o.items.length>100||!['active','delivered','closed'].includes(o.status)||typeof o.raw!=='string')throw Error('Повреждён заказ в файле.');ids.add(o.id);for(const r of o.items){if(!Number.isInteger(r.guest)||r.guest<1||r.guest>o.persons||!Number.isInteger(r.qty)||r.qty<1||r.qty>50||typeof r.query!=='string'||(r.dish!==null&&!byId[r.dish])||(r.weight!==undefined&&(!Number.isInteger(r.weight)||r.weight<1||r.weight>3000)))throw Error('Некорректная позиция заказа.');}}
+ const ids=new Set();for(const o of state.orders){if(!Number.isSafeInteger(o.id)||o.id<1||ids.has(o.id)||!Number.isInteger(o.persons)||o.persons<1||o.persons>50||!Array.isArray(o.items)||o.items.length>100||!['active','delivered','closed'].includes(o.status)||typeof o.raw!=='string')throw Error('Повреждён заказ в файле.');if(o.exclusionsText!==undefined&&(typeof o.exclusionsText!=='string'||o.exclusionsText.length>300))throw Error('Повреждены исключения заказа.');ids.add(o.id);for(const r of o.items){if(!Number.isInteger(r.guest)||r.guest<1||r.guest>o.persons||!Number.isInteger(r.qty)||r.qty<1||r.qty>50||typeof r.query!=='string'||(r.dish!==null&&!byId[r.dish])||(r.weight!==undefined&&(!Number.isInteger(r.weight)||r.weight<1||r.weight>3000)))throw Error('Некорректная позиция заказа.');}}
  state.nextId=Math.max(Number.isSafeInteger(state.nextId)?state.nextId:1,1,...state.orders.map(o=>o.id+1));if(!ids.has(state.current))state.current=null;state.rush=!!state.rush;
  if(typeof state.stock.date!=='string'||!state.stock.items||typeof state.stock.items!=='object')throw Error('Повреждён стоп/гоу.');state.stock.revisions??={};state.stock.epoch??=0;
  for(const [id,s] of Object.entries(state.stock.items)){if(byId[id]?.retired){delete state.stock.items[id];continue;}if(!byId[id]||!s||!['go','available','stop','limited'].includes(s.status)||(s.qty!==undefined&&s.qty!==null&&(!Number.isInteger(s.qty)||s.qty<0||s.qty>10000)))throw Error('Некорректный остаток.');if(s.status==='go'){s.go=true;s.status='available';}s.go=s.go===true;if(Number.isInteger(s.qty))s.status=s.qty>0?'limited':'stop';if(s.status==='limited'&&!(s.qty>0))s.status='stop';if(s.status==='stop')s.go=false;}
@@ -142,8 +142,9 @@ function reconcileItems(state,order,previous){
  }
  order.itemReservations=kept;
 }
-function saveOrder(state,text,editId=null){
+function saveOrder(state,text,editId=null,options={}){
  const next=clone(state),o=parseOrder(text),prev=editId?next.orders.find(o=>o.id===editId):null;
+ o.exclusionsText=options.exclusionsText??prev?.exclusionsText??'';if(typeof o.exclusionsText!=='string'||o.exclusionsText.length>300)throw Error('Исключения — до 300 символов.');
  if(editId&&(!prev||prev.status!=='active'))throw Error('Для исправления выбери активный заказ.');reconcile(next,o,prev);reconcileItems(next,o,prev);o.id=prev?prev.id:next.nextId++;
  if(prev)next.orders[next.orders.indexOf(prev)]=o;else next.orders.push(o);next.current=o.id;Object.assign(state,next);return o;
 }

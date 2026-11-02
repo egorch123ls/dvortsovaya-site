@@ -8,11 +8,12 @@ async function mutate(fn){const result=await store.transaction(fn);state=store.v
 function toast(text){$('#toast').textContent=text;$('#toast').style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').style.display='none',4200)}
 function current(){return state.orders.find(o=>o.id===state.current)}
 function updateTop(){W.daily(state);$('#today').textContent=new Intl.DateTimeFormat('ru',{day:'numeric',month:'long'}).format(new Date());$('#rushTop').classList.toggle('rush',state.rush);$('#rushTop').innerHTML=(state.rush?'Повышенное ожидание':'Обычное ожидание')+' <span>↗</span>';$('#orderCount').textContent=state.orders.filter(o=>o.status!=='closed').length}
-function tab(name){if(!['order','menu','stock','steaks','settings'].includes(name))return;const changed=activeTab!==name;activeTab=name;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==name);document.querySelectorAll('.nav').forEach(el=>{el.classList.toggle('active',el.dataset.tab===name);el.setAttribute('aria-current',el.dataset.tab===name?'page':'false')});if(name==='menu')renderMenu();if(name==='stock')renderStock();if(name==='steaks')renderSteaks();if(name==='settings')renderSettings();if(name==='order')renderPlan();updateTop();if(changed)window.scrollTo({top:0,behavior:'instant'});}
+function tab(name){if(!['order','menu','stock','steaks','settings'].includes(name))return;const changed=activeTab!==name;activeTab=name;document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==name);document.querySelectorAll('.nav').forEach(el=>{el.classList.toggle('active',el.dataset.tab===name);el.setAttribute('aria-current',el.dataset.tab===name?'page':'false')});if(name==='menu')renderMenu();if(name==='stock')renderStock();if(name==='steaks')renderSteaks();if(name==='settings')renderSettings();if(name==='order'){renderPlan();renderSuggestions();}updateTop();if(changed)window.scrollTo({top:0,behavior:'instant'});}
 const price=d=>d.priceLabel||(d.price==null?'':(d.priceUnit==='от'?'от ':'')+d.price+' ₽'+(d.priceUnit&&d.priceUnit!=='от'?' / '+d.priceUnit:''));
 function badge(id,weight){const s=W.stockStatus(state,id,weight);return '<span class="badge '+(s.status==='stop'?'stop':s.status==='limited'?'limited':s.status==='unknown'?'unknown':'')+'">'+esc(W.stockLabel(s))+'</span>'+(s.go?'<span class="badge go-mark">Гоу</span>':'')}
 function source(d){let list=[];if(d.menuSource==='photo')list.push('Актуальное меню: фото от 02.11.2026, '+esc(d.sourcePhoto)+'.');if(d.pdfPage)list.push('Актуальное меню: PDF, стр. '+d.pdfPage+'. Название, порция и цена — из PDF.');if(d.supplement)list.push('Дополнение к меню по твоим данным.');if(/^https:\/\//.test(d.sourceUrl||''))list.push('<a href="'+esc(d.sourceUrl)+'" target="_blank" rel="noopener">'+(d.sourceUrl===W.data.bar_url?'Скрипты бара':d.sourceUrl.includes('gruppoitalianovini')?'Описание производителя':'Скрипты кухни')+'</a>');else if(d.sourceUrl)list.push(esc(d.sourceUrl));for(const s of d.sources||[])list.push('Лист «'+esc(s.sheet)+'», строка '+s.row);return list.join('<br>')}
 function card(id){const d=W.byId[id];if(!d)return;let html='<p class="eyebrow">'+esc(d.section)+'</p><h2 id="cardTitle">'+esc(d.name)+'</h2><div class="item-meta">'+badge(id)+'<span>'+esc(d.portion||'')+'</span><span class="price">'+esc(price(d))+'</span></div>';
+if($('#allergenInput').value.trim()){const a=Allergy.assess(d,Allergy.parse($('#allergenInput').value));html+='<div class="notice"><strong>'+esc(a.status==='contains'?'Есть исключённые ингредиенты':a.status==='unknown'?'Нужно уточнить состав':'В скрипте совпадений нет')+'</strong><p>'+esc(allergyText(a)||'При аллергии проверь актуальный состав и перекрёстный контакт.')+'</p></div>';}
 if(d.wine_type)html+='<p>'+esc(d.wine_type)+' · '+esc(d.region)+'</p><p><strong>Виноград:</strong> '+esc(d.grapes)+'</p><p><strong>Вкус:</strong> '+esc(d.taste)+'</p><p><strong>Аромат:</strong> '+esc(d.aroma)+'</p><p><strong>Цвет:</strong> '+esc(d.color)+'</p>';
 else if(d.category==='oyster')html+='<p>'+esc(d.region)+'</p><p>'+esc(d.taste)+'</p><p><strong>Подача:</strong> '+esc(d.serving)+'</p>';
 else html+='<p class="preserve">'+esc(d.description||d.name)+'</p>';
@@ -27,8 +28,21 @@ function lookup(q){const found=W.resolve(q);if(found.retired?.length){$('#quickR
 const term=W.data.terms.find(t=>[t.name,...t.aliases].some(a=>W.norm(a)===W.norm(q)));if(term){$('#quickResult').innerHTML='<div class="notice"><strong>'+esc(term.name)+'</strong><p>'+esc(term.text)+'</p></div>';return}
 $('#quickResult').innerHTML=found.choices.length?'<p>Уточни блюдо:</p>'+found.choices.map(id=>'<button class="quiet" data-card="'+id+'">'+esc(W.byId[id].name)+'</button>').join(' '):'<p class="error">Не узнал название. Добавь слово: например, «сал с мук».</p>';}
 function dishButton(row){return '<button class="dish-link" data-card="'+row.dish+'">'+esc(W.name(row))+'</button>'}
+function allergyText(a){return a.found.length?a.found.map(f=>f.label+' → '+f.evidence.join(', ')).join('; '):a.uncertain.join(' ');}
+function renderSuggestions(){
+ const text=$('#allergenInput').value.trim(),box=$('#allergySuggestions');box.hidden=!text;$('.recommendations').hidden=!!text;if(!text){box.innerHTML='';return;}
+ try{const result=Allergy.recommend(state,text,$('#recommendCategory').value,$('#orderInput').value.trim());
+ const rows=entries=>entries.map(({dish:d,assessment:a})=>'<div class="allergy-item"><button class="dish-link" data-card="'+d.id+'">'+esc(d.name)+'</button><p class="muted">'+esc(a.status==='not_listed'?'В записанном составе не указаны: '+result.restrictions.map(r=>r.label).join(', '):allergyText(a))+'</p></div>').join('');
+ const candidates=result.not_listed;
+ box.innerHTML='<div class="panel"><p class="eyebrow">ПОДБОР ПО СОСТАВУ</p><h2>С учётом исключений</h2><p class="allergy-note">Совпадения исключены, включая соусы и маринады. Отсутствие в скрипте не гарантирует отсутствие аллергена: перед рекомендацией при аллергии проверь актуальный состав и перекрёстный контакт.</p>'+(candidates.length?'<h3>Не указаны в записанном составе · '+candidates.length+'</h3>'+rows(candidates.slice(0,6))+(candidates.length>6?'<details><summary>Ещё '+(candidates.length-6)+' позиций</summary>'+rows(candidates.slice(6))+'</details>':''):'<p>Нет вариантов с достаточно описанным составом для этого запроса.</p>')+(result.unknown.length?'<details class="allergy-unknown"><summary>Состав нужно уточнить · '+result.unknown.length+'</summary>'+rows(result.unknown)+'</details>':'')+(result.contains.length?'<details class="allergy-excluded"><summary>Исключены по составу · '+result.contains.length+'</summary>'+rows(result.contains)+'</details>':'')+(result.stopped?'<p class="muted">В стопе: '+result.stopped+' — не предлагаются.</p>':'')+'</div>';
+ }catch(error){box.innerHTML='<p class="error">'+esc(error.message)+'</p>';}
+}
+function allergyOrderHTML(o){
+ if(!o.exclusionsText)return '';const checks=Allergy.orderChecks(o),conflicts=checks.filter(c=>c.assessment.status==='contains'),unknown=checks.filter(c=>c.assessment.status==='unknown');
+ return '<div class="notice allergy-order"><strong>Аллергии / исключить: '+esc(o.exclusionsText)+'</strong><p class="muted">Для всего заказа.</p>'+conflicts.map(c=>'<p class="error">Персона '+c.row.guest+' · '+esc(c.dish.name)+': '+esc(allergyText(c.assessment))+'</p>').join('')+unknown.map(c=>'<p>Уточнить состав: персона '+c.row.guest+' · '+esc(c.dish?.name||c.row.query)+'. '+esc(allergyText(c.assessment))+'</p>').join('')+(!conflicts.length?'<p>В описанных ингредиентах совпадений не найдено.</p>':'')+'<p class="muted">Перед подачей при аллергии проверь состав и перекрёстный контакт. Заказ не заменён автоматически.</p></div>';
+}
 function renderPlan(){const o=current();if(!o){$('#plan').innerHTML='<div class="empty-plan"><h2>Подача по порядку</h2><p>Введи заказ — здесь появятся курсы и подсказки.</p></div>';return;}const p=W.plan(o,state);let html='<div class="plan-header"><div><p class="eyebrow">'+o.persons+' ПЕРСОН · '+(state.rush?'ПОВЫШЕННОЕ ОЖИДАНИЕ':'ОБЫЧНОЕ ОЖИДАНИЕ')+'</p><h2>Заказ №'+o.id+'</h2></div><div class="form-actions">'+(o.status==='active'?'<button class="quiet" data-edit="'+o.id+'">Исправить</button><button class="primary" data-deliver="'+o.id+'">Заказ отдал</button>':o.status==='delivered'?'<button class="primary" data-close="'+o.id+'">Завершить</button>':'<span class="badge">Завершён</span>')+'</div></div>';
-const warnings=W.orderWarnings(o,state);if(warnings.length)html+='<div class="notice">'+warnings.map(esc).join('<br>')+'</div>';
+html+=allergyOrderHTML(o);const warnings=W.orderWarnings(o,state);if(warnings.length)html+='<div class="notice">'+warnings.map(esc).join('<br>')+'</div>';
 if(p.missing.length)html+='<p class="error">Не указан заказ персон: '+p.missing.join(', ')+'.</p>';
 if(p.unknown.length)html+='<div class="notice"><strong>Уточни нераспознанные блюда</strong>'+p.unknown.map(row=>{const i=o.items.indexOf(row),choices=W.resolve(row.query).choices;return '<p>Персона '+row.guest+': «'+esc(row.query)+'»</p>'+(choices.length?choices.map(id=>'<button class="quiet" data-choose-dish="'+id+'" data-order="'+o.id+'" data-item-index="'+i+'">'+esc(W.byId[id].name)+'</button>').join(' '):'<p class="muted">Нажми «Исправить» и допиши название.</p>')}).join('')+'</div>';
 if(p.drinks.length)html+='<div class="panel" style="margin-top:20px"><h3>Напитки</h3>'+p.drinks.map(r=>'<div class="guest-row"><span class="guest-label">Персона '+r.guest+'</span><div>'+dishButton(r)+'</div></div>').join('')+'<p class="muted">Подать по пожеланию гостей. '+(p.drinkWait?'Ожидание бара: '+W.formatWait(p.drinkWait)+'.':'Время бара не задано.')+'</p></div>';
@@ -51,17 +65,17 @@ async function dispatch(text){
   const receipt=await mutate(s=>type==='stock'?W.stockCommand(s,text):[W.steakCommand(s,text)]);
   $('#quickResult').innerHTML='<div class="notice">'+receipt.map(esc).join('<br>')+'</div>';toast('Наличие обновлено');$('#orderInput').value='';syncComposer();renderPlan();return;
  }
- if(type!=='order'){lookup(text);return}
+ if(type!=='order'){if($('#allergenInput').value.trim()&&Allergy.categoryQuery(text)){renderSuggestions();$('#allergySuggestions').scrollIntoView({behavior:'smooth',block:'start'});}else lookup(text);return}
  const explicit=/^исправить/i.test(text),id=editing||(explicit?state.current:null);
  if(explicit&&!id)throw Error('Нет текущего заказа для исправления.');
- await mutate(s=>W.saveOrder(s,text,id));editing=null;$('#orderInput').value='';syncComposer();$('#quickResult').innerHTML='';renderPlan();renderHistory(false);$('#plan').scrollIntoView({behavior:'smooth',block:'start'});
+ const exclusionsText=$('#allergenInput').value.trim();await mutate(s=>W.saveOrder(s,text,id,{exclusionsText}));editing=null;$('#orderInput').value='';$('#allergenInput').value='';syncComposer();$('#quickResult').innerHTML='';renderPlan();renderHistory(false);$('#plan').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function syncComposer(){
  const text=$('#orderInput').value.trim(),type=W.commandType(text);
- const options=editing?['Исправление','Сохранить изменения','Заменится выбранный заказ. Остатки пересчитаются.']:!text||type==='order'?['По персонам','Разобрать заказ','Сокращай и пиши как удобно. Каждая персона — с нового номера.']:type==='stock'||type==='steaks'?['Наличие','Обновить наличие','Стоп, гоу и количество можно заполнить одной командой.']:type==='rush'?['Ожидание','Переключить режим','Изменится ожидание для заказов.']:['Подсказка',text.includes('??')?'Проверить наличие':'Показать','Один ? — состав. Два ?? — наличие на сегодня.'];
- $('#inputMode').textContent=options[0];$('#submitOrder').innerHTML=options[1]+' <span aria-hidden="true">↗</span>';$('#inputHint').textContent=options[2];$('#cancelEdit').hidden=!editing;
+ const options=editing?['Исправление','Сохранить изменения','Заменится выбранный заказ. Остатки пересчитаются.']:!text||type==='order'?['По персонам','Разобрать заказ','Сокращай и пиши как удобно. Каждая персона — с нового номера.']:type==='stock'||type==='steaks'?['Наличие','Обновить наличие','Стоп, гоу и количество можно заполнить одной командой.']:type==='rush'?['Ожидание','Переключить режим','Изменится ожидание для заказов.']:$('#allergenInput').value.trim()&&Allergy.categoryQuery(text)?['Подбор блюд','Подобрать','Рекомендации обновляются с учётом исключённых ингредиентов.']:['Подсказка',text.includes('??')?'Проверить наличие':'Показать','Один ? — состав. Два ?? — наличие на сегодня.'];
+ $('#inputMode').textContent=options[0];$('#submitOrder').innerHTML=options[1]+' <span aria-hidden="true">↗</span>';$('#inputHint').textContent=options[2];$('#cancelEdit').hidden=!editing;renderSuggestions();
 }
-function cancelEditing(){editing=null;$('#orderInput').value='';$('#orderError').textContent='';syncComposer();}
+function cancelEditing(){editing=null;$('#orderInput').value='';$('#allergenInput').value='';$('#orderError').textContent='';syncComposer();}
 async function submitOrder(){
  if(orderBusy)return;const text=$('#orderInput').value.trim();$('#orderError').textContent='';if(!text){$('#orderError').textContent='Введи заказ, название блюда или команду.';return}
  orderBusy=true;$('#submitOrder').disabled=true;
@@ -89,6 +103,7 @@ $('#recoverData').onclick=async()=>{try{const raw=storage.getItem(key+'-backup')
 }
 $('#submitOrder').onclick=submitOrder;
 $('#orderInput').addEventListener('input',syncComposer);
+$('#allergenInput').addEventListener('input',syncComposer);$('#recommendCategory').addEventListener('change',renderSuggestions);
 $('#orderInput').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')submitOrder()});
 $('#cancelEdit').onclick=cancelEditing;
 $('#exampleButton').onclick=()=>{editing=null;$('#orderInput').value='1: рыбник, бифштекс\n2: рыбник, цез с крев';syncComposer();$('#orderInput').focus()};
@@ -104,11 +119,11 @@ document.addEventListener('click',async e=>{
   if(b.dataset.query)await dispatch(b.dataset.query);
   if(b.dataset.fill){editing=null;$('#orderInput').value=b.dataset.fill;syncComposer();$('#orderInput').focus();$('#orderInput').scrollIntoView({behavior:'smooth',block:'center'})}
   if(b.dataset.card)card(b.dataset.card);
-  if(b.dataset.edit){editing=+b.dataset.edit;const o=state.orders.find(o=>o.id===editing);$('#orderInput').value=o.raw;syncComposer();$('#orderInput').focus();$('#orderInput').scrollIntoView({behavior:'smooth',block:'center'})}
+  if(b.dataset.edit){editing=+b.dataset.edit;const o=state.orders.find(o=>o.id===editing);$('#orderInput').value=o.raw;$('#allergenInput').value=o.exclusionsText||'';syncComposer();$('#orderInput').focus();$('#orderInput').scrollIntoView({behavior:'smooth',block:'center'})}
   if(b.dataset.deliver){await mutate(s=>W.setOrderStatus(s,+b.dataset.deliver,'delivered'));renderPlan();renderHistory(false)}
   if(b.dataset.close){await mutate(s=>W.setOrderStatus(s,+b.dataset.close,'closed'));renderPlan();renderHistory(false)}
   if(b.dataset.openOrder){await mutate(s=>s.current=+b.dataset.openOrder);renderPlan();$('#plan').scrollIntoView({behavior:'smooth'})}
-  if(b.hasAttribute('data-clear-orders')){await mutate(W.clearOrders);editing=null;$('#orderInput').value='';syncComposer();$('#plan').innerHTML='<div class="empty-plan"><h2>Заказы очищены</h2><p>Можно принимать новый заказ.</p></div>';renderHistory(false);toast('Заказы очищены. Остатки не возвращены.')}
+  if(b.hasAttribute('data-clear-orders')){await mutate(W.clearOrders);editing=null;$('#orderInput').value='';$('#allergenInput').value='';syncComposer();$('#plan').innerHTML='<div class="empty-plan"><h2>Заказы очищены</h2><p>Можно принимать новый заказ.</p></div>';renderHistory(false);toast('Заказы очищены. Остатки не возвращены.')}
   if(b.dataset.clearStock){await mutate(s=>W.clearStock(s,b.dataset.clearStock));renderStock()}
   if(b.dataset.moveStock){await mutate(s=>W.setStock(s,b.dataset.moveStock,b.dataset.status));renderStock()}
   if(b.dataset.removeGo){await mutate(s=>W.removeGo(s,b.dataset.removeGo));renderStock()}
@@ -119,7 +134,7 @@ document.addEventListener('click',async e=>{
   if(b.dataset.chooseDish){await mutate(s=>W.chooseDish(s,+b.dataset.order,+b.dataset.itemIndex,b.dataset.chooseDish));renderPlan()}
  }catch(error){toast(error.message);b.disabled=false}
 });
-window.addEventListener('storage',e=>{if(e.key===key){try{state=store.read();store.value=state;updateTop();if(activeTab==='order')renderPlan();else if(!document.activeElement?.matches('input,textarea,select'))tab(activeTab)}catch{toast('Не удалось прочитать обновлённую смену')}}});
+window.addEventListener('storage',e=>{if(e.key===key){try{state=store.read();store.value=state;updateTop();if(activeTab==='order'){renderPlan();renderSuggestions();}else if(!document.activeElement?.matches('input,textarea,select'))tab(activeTab)}catch{toast('Не удалось прочитать обновлённую смену')}}});
 window.addEventListener('unhandledrejection',e=>{toast(e.reason?.message||'Не удалось сохранить изменение.');});
 window.addEventListener('focus',()=>{const date=state.stock.date;W.daily(state);if(date!==state.stock.date){updateTop();if(activeTab==='stock')renderStock();if(activeTab==='steaks')renderSteaks();toast('Новый день: заполни наличие заново.')}});
 if(document.modelContext?.registerTool){try{document.modelContext.registerTool({name:'lookup_menu',description:'Найти блюдо или напиток и показать его карточку либо статус.',inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:true},execute(input){if(typeof input?.query!=='string'||input.query.length>150)throw Error('Ожидается короткое название.');const f=W.resolve(input.query);lookup(input.query);return f.dish?{name:W.byId[f.dish].name,status:W.stockLabel(W.stockStatus(state,f.dish,f.weight))}:{choices:f.choices.map(id=>W.byId[id].name)}}});}catch{}}
