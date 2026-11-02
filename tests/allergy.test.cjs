@@ -67,3 +67,8 @@ test('guest numbers without colon support newlines, edits and preserve quantitie
  assert.throws(()=>W.parseOrder('1 рыбник\n1 чиз'));
  assert.throws(()=>W.parseOrder('1 рыбник\n2'));
 });
+test('current honey correction excludes tatin and retains sea buckthorn tea',()=>{
+ const terms=A.parse('мёд');assert.equal(A.assess(W.byId['57dcced6b5'],terms).status,'contains');assert.equal(A.assess(W.byId['tea-seabuckthorn'],terms).status,'not_listed');
+ const r=A.recommend(W.newState(),'мёд');assert.ok(ids(r.contains).includes('57dcced6b5'));assert.ok(ids(r.not_listed).includes('tea-seabuckthorn'));assert.ok(!ids(r.contains).includes('tea-seabuckthorn'));
+ const order=W.saveOrder(W.newState(),'1 татин 2 ч облепиха',null,{exclusionsText:'мёд'});const checks=A.orderChecks(order);assert.equal(checks.filter(r=>r.assessment.status==='contains').length,1);assert.equal(checks.find(r=>r.assessment.status==='contains').dish.id,'57dcced6b5');
+});
