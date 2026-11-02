@@ -1,7 +1,7 @@
 /* Shared, dependency-free menu and service logic. No network or paid API. */
 (function(root){
 'use strict';
-const data=root.MENU_DATA, items=data.items, byId=Object.fromEntries(items.map(d=>[d.id,d]));
+const data=root.MENU_DATA, items=data.items, activeIds=new Set(items.map(d=>d.id)), retired=data.retiredItems||[], byId=Object.fromEntries([...retired,...items].map(d=>[d.id,d]));
 const clone=x=>JSON.parse(JSON.stringify(x));
 function norm(s){return String(s).toLowerCase().replace(/ё/g,'е').replace(/([а-яa-z])(\d)/g,'$1 $2').replace(/[^а-яa-z0-9\s]/g,' ').replace(/\s+/g,' ').trim()}
 const words=s=>norm(s).split(' ').filter(x=>x&&x!=='с').map(x=>x==='ч'?'чай':x);
@@ -11,9 +11,10 @@ const memo=new Map();
 function resolve(input){
  const q=norm(input);if(memo.has(q))return memo.get(q);let result={dish:null,choices:[],cost:9};
  const weight=q.match(/^стейк\s+(\d{1,4})(?:\s+(?:г|гр|грамм))?$/);if(weight){if(+weight[1]>=1&&+weight[1]<=3000)return {dish:'marbled-steak',weight:+weight[1],choices:[],cost:0};return result}
- if(data.shortcuts[q]&&byId[data.shortcuts[q]])return {dish:data.shortcuts[q],choices:[],cost:0};
+ if(data.shortcuts[q]&&activeIds.has(data.shortcuts[q]))return {dish:data.shortcuts[q],choices:[],cost:0};
  if(['п','пи','пицца'].includes(q))return {dish:null,choices:items.filter(d=>d.is_pizza).map(d=>d.id),cost:1};
  const exact=names.filter(x=>x.aliases.includes(q));if(exact.length===1)return {dish:exact[0].d.id,choices:[],cost:0};if(exact.length>1)return {dish:null,choices:exact.map(x=>x.d.id),cost:1};
+ const former=retired.filter(d=>[d.name,...d.aliases].map(norm).includes(q));if(former.length)return {dish:null,choices:[],retired:former.map(d=>d.id),cost:9};
  const qw=words(q);if(!qw.length)return result;
  let candidates=[];
  for(const {d,aliases} of names){let best=99;
@@ -47,17 +48,17 @@ function parseOrder(text){
 }
 function day(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Yekaterinburg',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
 function emptyStock(epoch=0){return {date:day(),items:{},revisions:{},epoch,steaks:{updated:false,weights:{},revisions:{},epoch:0}}}
-function newState(){return {schema:2,revision:0,orders:[],nextId:1,current:null,rush:false,waits:clone(data.config),stock:emptyStock()}}
+function newState(){return {schema:3,revision:0,orders:[],nextId:1,current:null,rush:false,waits:clone(data.config),stock:emptyStock()}}
 function validRange(value){return value===null||(Array.isArray(value)&&value.length===2&&value.every(n=>Number.isFinite(n)&&n>=0&&n<=240)&&value[0]<=value[1])}
 function migrateState(input){
- if(!input||![1,2].includes(input.schema)||!Array.isArray(input.orders)||!input.stock?.steaks||!input.waits)throw Error('Файл не похож на сохранённую смену.');
- const state=clone(input);state.schema=2;state.revision=Number.isSafeInteger(state.revision)?state.revision:0;
+ if(!input||![1,2,3].includes(input.schema)||!Array.isArray(input.orders)||!input.stock?.steaks||!input.waits)throw Error('Файл не похож на сохранённую смену.');
+ const state=clone(input);state.schema=3;state.revision=Number.isSafeInteger(state.revision)?state.revision:0;
  if(state.orders.length>5000)throw Error('Слишком много заказов в файле.');
  for(const mode of ['normal','rush']){if(!state.waits[mode]||typeof state.waits[mode]!=='object')throw Error('Нет настроек ожидания.');for(const cat of Object.keys(data.config[mode])){if(state.waits[mode][cat]===undefined)state.waits[mode][cat]=clone(data.config[mode][cat]);if(!validRange(state.waits[mode][cat]))throw Error('Некорректное время ожидания.')}}
  const ids=new Set();for(const o of state.orders){if(!Number.isSafeInteger(o.id)||o.id<1||ids.has(o.id)||!Number.isInteger(o.persons)||o.persons<1||o.persons>50||!Array.isArray(o.items)||o.items.length>100||!['active','delivered','closed'].includes(o.status)||typeof o.raw!=='string')throw Error('Повреждён заказ в файле.');ids.add(o.id);for(const r of o.items){if(!Number.isInteger(r.guest)||r.guest<1||r.guest>o.persons||!Number.isInteger(r.qty)||r.qty<1||r.qty>50||typeof r.query!=='string'||(r.dish!==null&&!byId[r.dish])||(r.weight!==undefined&&(!Number.isInteger(r.weight)||r.weight<1||r.weight>3000)))throw Error('Некорректная позиция заказа.');}}
  state.nextId=Math.max(Number.isSafeInteger(state.nextId)?state.nextId:1,1,...state.orders.map(o=>o.id+1));if(!ids.has(state.current))state.current=null;state.rush=!!state.rush;
  if(typeof state.stock.date!=='string'||!state.stock.items||typeof state.stock.items!=='object')throw Error('Повреждён стоп/гоу.');state.stock.revisions??={};state.stock.epoch??=0;
- for(const [id,s] of Object.entries(state.stock.items)){if(!byId[id]||!s||!['go','stop','limited'].includes(s.status)||(s.qty!==undefined&&s.qty!==null&&(!Number.isInteger(s.qty)||s.qty<0||s.qty>10000)))throw Error('Некорректный остаток.');if(Number.isInteger(s.qty))s.status=s.qty>0?'limited':'stop';if(s.status==='limited'&&!(s.qty>0))s.status='stop';}
+ for(const [id,s] of Object.entries(state.stock.items)){if(byId[id]?.retired){delete state.stock.items[id];continue;}if(!byId[id]||!s||!['go','available','stop','limited'].includes(s.status)||(s.qty!==undefined&&s.qty!==null&&(!Number.isInteger(s.qty)||s.qty<0||s.qty>10000)))throw Error('Некорректный остаток.');if(s.status==='go'){s.go=true;s.status='available';}s.go=s.go===true;if(Number.isInteger(s.qty))s.status=s.qty>0?'limited':'stop';if(s.status==='limited'&&!(s.qty>0))s.status='stop';if(s.status==='stop')s.go=false;}
  const steaks=state.stock.steaks;if(!steaks.weights||typeof steaks.weights!=='object')throw Error('Повреждены граммовки.');for(const [g,count] of Object.entries(steaks.weights))if(!/^\d{1,4}$/.test(g)||+g<1||+g>3000||!Number.isInteger(count)||count<1||count>1000)throw Error('Некорректная граммовка.');steaks.revisions??={};steaks.epoch??=0;
  for(const o of state.orders){for(const r of o.reservations||[])if(!r||!/^\d{1,4}$/.test(r.weight)||typeof r.date!=='string'||!Number.isInteger(r.epoch)||!Number.isInteger(r.revision))throw Error('Повреждено списание стейка.');for(const r of o.itemReservations||[])if(!r||!byId[r.dish]||!Number.isInteger(r.qty)||r.qty<1||typeof r.date!=='string'||!Number.isInteger(r.epoch)||!Number.isInteger(r.revision))throw Error('Повреждено списание остатка.');}
  daily(state);return state;
@@ -98,18 +99,22 @@ function plan(order,state){
 function formatWait(t){return t?(t[0]===t[1]?t[0]:t[0]+'–'+t[1])+' мин':'время не задано'}
 function name(row){return (byId[row.dish]?.name||'Не распознано: '+row.query)+(row.weight?' · '+row.weight+' г':'')+(row.qty>1?' ×'+row.qty:'')}
 function stockStatus(state,id,weight){daily(state);if(id==='marbled-steak'){const s=state.stock.steaks;return !s.updated?{status:'unknown'}:{status:(weight?s.weights[weight]>0:Object.values(s.weights).some(n=>n>0))?'go':'stop'}}return state.stock.items[id]||{status:'unknown'}}
-function stockLabel(s){if(s.status==='limited')return 'Ограничение · осталось '+s.qty;if(s.status==='stop')return 'В стопе'+(s.qty===0?' · осталось 0':'');if(s.status==='go')return 'В наличии · без ограничений';return 'На сегодня не отмечено'}
+function stockLabel(s){if(s.status==='limited')return 'Ограничение · осталось '+s.qty;if(s.status==='stop')return 'В стопе'+(s.qty===0?' · осталось 0':'');if(s.status==='go'||s.status==='available')return 'Доступно · без ограничений';return 'На сегодня не отмечено'}
 function setStock(state,id,status,qty){
- daily(state);if(!byId[id]||id==='marbled-steak')throw Error('Выбери блюдо; стейки заполняются граммовками.');if(!['go','stop','limited','unknown'].includes(status))throw Error('Неизвестный статус.');
+ daily(state);if(!activeIds.has(id)||id==='marbled-steak')throw Error('Выбери блюдо; стейки заполняются граммовками.');if(!['go','available','stop','limited','unknown'].includes(status))throw Error('Неизвестный статус.');
  if(qty!==undefined&&qty!==null&&(!Number.isInteger(qty)||qty<0||qty>10000))throw Error('Остаток — целое число от 0 до 10000.');
  if(status==='limited'&&!Number.isInteger(qty))throw Error('Для ограничения укажи количество.');
- state.stock.revisions[id]=(state.stock.revisions[id]||0)+1;
+ if(status!=='go'||!(state.stock.items[id]?.qty>0))state.stock.revisions[id]=(state.stock.revisions[id]||0)+1;
  if(status==='unknown'){delete state.stock.items[id];return}
- if(Number.isInteger(qty))state.stock.items[id]={status:qty>0?'limited':'stop',qty};
- else state.stock.items[id]=status==='stop'?{status:'stop',qty:0}:{status:'go',qty:null};
+ const previous=state.stock.items[id];
+ if(status==='go'){state.stock.items[id]={status:previous?.qty>0?'limited':'available',qty:previous?.qty>0?previous.qty:null,go:true};return}
+ const go=previous?.go===true;
+ if(Number.isInteger(qty))state.stock.items[id]={status:qty>0?'limited':'stop',qty,go:qty>0&&go};
+ else state.stock.items[id]=status==='stop'?{status:'stop',qty:0,go:false}:{status:'available',qty:null,go};
 }
+function removeGo(state,id){daily(state);if(state.stock.items[id])state.stock.items[id].go=false;}
 function adjustStock(state,id,delta){daily(state);const value=state.stock.items[id];if(!value||!Number.isInteger(value.qty))throw Error('Сначала задай ограничение числом.');setStock(state,id,'limited',Math.max(0,value.qty+delta));}
-function clearStock(state,list){daily(state);for(const [id,value] of Object.entries(state.stock.items))if(list==='all'||(list==='stop'?value.status!=='go':value.status==='go'))setStock(state,id,'unknown');}
+function clearStock(state,list){daily(state);for(const [id,value] of Object.entries(state.stock.items)){if(list==='all')setStock(state,id,'unknown');else if(list==='go')removeGo(state,id);else if(['stop','limited'].includes(value.status))setStock(state,id,'available');}}
 
 function steakCommand(state,text){
  const q=norm(text);daily(state);const s=state.stock.steaks;
@@ -131,8 +136,8 @@ function reconcileItems(state,order,previous){
  for(const row of order.items)if(row.dish&&row.dish!=='marbled-steak')requested.set(row.dish,(requested.get(row.dish)||0)+row.qty);
  for(const [id,amount] of requested){let need=amount;for(const r of old.filter(r=>r.dish===id)){const count=Math.min(need,r.qty);if(count){kept.push({...r,qty:count});r.qty-=count;need-=count}}requested.set(id,need)}
  for(const r of old)if(r.qty>0&&r.date===stock.date&&r.epoch===stock.epoch&&r.revision===(stock.revisions[r.dish]||0)){const v=stock.items[r.dish];if(v&&Number.isInteger(v.qty)){v.qty+=r.qty;v.status='limited'}}
- for(const [id,amount] of requested){if(!amount)continue;const v=stock.items[id];if(!v||v.status==='go')continue;
-  const available=Number.isInteger(v.qty)?v.qty:0,take=Math.min(available,amount);if(take){v.qty-=take;v.status=v.qty?'limited':'stop';kept.push({dish:id,qty:take,date:stock.date,epoch:stock.epoch,revision:stock.revisions[id]||0})}
+ for(const [id,amount] of requested){if(!amount)continue;const v=stock.items[id];if(!v||v.status==='go'||v.status==='available')continue;
+  const available=Number.isInteger(v.qty)?v.qty:0,take=Math.min(available,amount);if(take){v.qty-=take;v.status=v.qty?'limited':'stop';if(!v.qty)v.go=false;kept.push({dish:id,qty:take,date:stock.date,epoch:stock.epoch,revision:stock.revisions[id]||0})}
   if(take<amount)order.warnings.push(byId[id].name+': не хватает '+(amount-take)+' порц. — заказ сохранён с предупреждением.');
  }
  order.itemReservations=kept;
@@ -149,9 +154,10 @@ function stockCommand(state,text,defaultStatus=null){
  for(const line of text.split(/[;\n]+/).filter(x=>x.trim())){
   let q=norm(line);if(/^стейки?(?: |$)/.test(q)){messages.push(steakCommand(copy,line));continue}let status=defaultStatus,qty,query=q;
   if(/[0-9][.,][0-9]/.test(line))throw Error('Остаток должен быть целым числом.');
-  if(/без огран/.test(q)){status='go';qty=null;query=q.replace(/без огран\S*/,'').trim()}
-  else if(q.includes('не стоп')){status='go';query=q.replace('не стоп','').trim()}
-  else{const prefix=q.match(/^(стоп|гоу|го|есть|нет)\s+(.+)$/),suffix=q.match(/^(.+)\s+(стоп|гоу|го|есть|нет)$/);if(prefix||suffix){const token=prefix?prefix[1]:suffix[2];status=['стоп','нет'].includes(token)?'stop':'go';query=prefix?prefix[2]:suffix[1]}
+  if(/без огран/.test(q)){status='available';qty=null;query=q.replace(/без огран\S*/,'').trim()}
+  else if(q.includes('не гоу')){const found=resolve(q.replace('не гоу','').trim());if(!found.dish)throw Error('Уточни название для снятия с гоу.');removeGo(copy,found.dish);messages.push(byId[found.dish].name+' — убрано из гоу');continue;}
+  else if(q.includes('не стоп')){status='available';query=q.replace('не стоп','').trim()}
+  else{const prefix=q.match(/^(стоп|гоу|го|есть|нет)\s+(.+)$/),suffix=q.match(/^(.+)\s+(стоп|гоу|го|есть|нет)$/);if(prefix||suffix){const token=prefix?prefix[1]:suffix[2];status=['стоп','нет'].includes(token)?'stop':token==='есть'?'available':'go';query=prefix?prefix[2]:suffix[1]}
    const number=query.match(/^(.+?)\s+(\d+)(?:\s+(?:шот(?:а|ов)?|порц(?:ии|ий|ия)?|шт))?$/);if(number){qty=+number[2];status=qty?'limited':'stop';query=number[1]}
   }
   if(!status)throw Error('Напиши «ры стоп», «ры не стоп» или «ростбиф — 6».');let ids;
@@ -160,12 +166,12 @@ function stockCommand(state,text,defaultStatus=null){
   else if(['фритюр','фри','фрит'].includes(query))throw Error('Картофеля фри нет в актуальном PDF. Стоп/гоу для него не изменён.');
   else{const found=resolve(query);if(found.dish)ids=[found.dish];else{const rows=segment(query,1);if(rows.some(r=>!r.dish)||!rows.length)throw Error('Не удалось однозначно распознать: '+query);ids=rows.map(r=>r.dish)}}
   if(Number.isInteger(qty)&&ids.length>1)throw Error('Укажи количество для каждого блюда отдельной строкой.');
-  for(const id of new Set(ids)){setStock(copy,id,status,qty);messages.push(byId[id].name+' — '+stockLabel(stockStatus(copy,id)))}
+  for(const id of new Set(ids)){setStock(copy,id,status,qty);messages.push(byId[id].name+' — '+(status==='go'?'добавлено в гоу · ':'')+stockLabel(stockStatus(copy,id)))}
  }if(!messages.length)throw Error('Напиши хотя бы одну позицию.');state.stock=copy.stock;return messages;
 }
 function commandType(text){const q=norm(text);if(/\d\s*:/.test(text))return 'order';if(['старт повыш','стоп повыш'].includes(q))return 'rush';if(text.includes('?'))return 'lookup';if(/^стейки?\s+/.test(q)&&/\d/.test(q))return 'steaks';if(/(?:^| )(?:стоп|гоу|го|есть|нет)(?: |$)|без огран|забрала|забрал/.test(q)||/\s\d+(?: (?:шот(?:а|ов)?|шт|порц(?:ии|ий|ия)?))?$/.test(q))return 'stock';return 'lookup'}
-function orderWarnings(order,state){const warnings=[...(order.warnings||[])];for(const row of order.items){if(!row.dish||row.dish==='marbled-steak')continue;const stock=stockStatus(state,row.dish);const accounted=(order.itemReservations||[]).some(r=>r.dish===row.dish);if(stock.status==='stop'&&!accounted)warnings.push('В СТОПЕ: '+byId[row.dish].name)}return [...new Set(warnings)]}
-function chooseDish(state,orderId,index,dish){if(!byId[dish])throw Error('Блюдо не найдено.');const previous=state.orders.find(o=>o.id===orderId);if(!previous||previous.status!=='active'||previous.items[index]?.dish!==null)throw Error('Позиция уже уточнена.');const next=clone(state),order=clone(previous);order.items[index]={...order.items[index],dish,query:byId[dish].name,choices:[]};order.raw=Array.from({length:order.persons},(_,i)=>(i+1)+': '+order.items.filter(r=>r.guest===i+1).map(r=>(r.qty>1?r.qty+'х ':'')+(r.weight?'стейк '+r.weight:r.dish?byId[r.dish].name:r.query)).join(', ')).join('\n');reconcile(next,order,previous);reconcileItems(next,order,previous);next.orders[next.orders.findIndex(o=>o.id===orderId)]=order;Object.assign(state,next);return order}
+function orderWarnings(order,state){const warnings=[...(order.warnings||[])];for(const row of order.items){if(!row.dish||row.dish==='marbled-steak')continue;if(!activeIds.has(row.dish)){warnings.push('Больше нет в актуальном меню: '+byId[row.dish].name);continue;}const stock=stockStatus(state,row.dish);const accounted=(order.itemReservations||[]).some(r=>r.dish===row.dish);if(stock.status==='stop'&&!accounted)warnings.push('В СТОПЕ: '+byId[row.dish].name)}return [...new Set(warnings)]}
+function chooseDish(state,orderId,index,dish){if(!activeIds.has(dish))throw Error('Блюдо не найдено в актуальном меню.');const previous=state.orders.find(o=>o.id===orderId);if(!previous||previous.status!=='active'||previous.items[index]?.dish!==null)throw Error('Позиция уже уточнена.');const next=clone(state),order=clone(previous);order.items[index]={...order.items[index],dish,query:byId[dish].name,choices:[]};order.raw=Array.from({length:order.persons},(_,i)=>(i+1)+': '+order.items.filter(r=>r.guest===i+1).map(r=>(r.qty>1?r.qty+'х ':'')+(r.weight?'стейк '+r.weight:r.dish?byId[r.dish].name:r.query)).join(', ')).join('\n');reconcile(next,order,previous);reconcileItems(next,order,previous);next.orders[next.orders.findIndex(o=>o.id===orderId)]=order;Object.assign(state,next);return order}
 
-root.Waiter={data,items,byId,clone,norm,resolve,parseOrder,plan,duration,formatWait,name,day,newState,migrateState,daily,stockStatus,stockLabel,setStock,adjustStock,clearStock,steakCommand,saveOrder,stockCommand,reconcile,setOrderStatus,clearOrders,commandType,orderWarnings,chooseDish};
+root.Waiter={data,items,byId,clone,norm,resolve,parseOrder,plan,duration,formatWait,name,day,newState,migrateState,daily,stockStatus,stockLabel,setStock,adjustStock,removeGo,clearStock,steakCommand,saveOrder,stockCommand,reconcile,setOrderStatus,clearOrders,commandType,orderWarnings,chooseDish};
 })(globalThis);

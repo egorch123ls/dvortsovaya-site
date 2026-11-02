@@ -1,13 +1,67 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#522422"><meta name="description" content="Помощник официанта Дворцовой: меню, скрипты, заказы и подача по курсам."><title>Дворцовая · Помощник официанта</title><link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=20260921-2"></head>
-<body><header class="top"><a class="brand" href="#order">ДВОРЦОВАЯ<span>помощник официанта</span></a><button id="rushTop" class="status-button" type="button">Обычное ожидание <span>↗</span></button></header>
-<div class="workspace"><aside><nav aria-label="Разделы"><button class="nav active" data-tab="order">Заказ <span>01</span></button><button class="nav" data-tab="menu">Меню и скрипты <span>02</span></button><button class="nav" data-tab="stock">Стоп / гоу <span>03</span></button><button class="nav" data-tab="steaks">Стейки <span>04</span></button><button class="nav" data-tab="settings">Ожидание <span>05</span></button></nav><div class="side-note"><span id="today"></span><p>Твоя смена.<br>Всё под рукой.</p><small>Данные сохраняются на этом устройстве.</small></div></aside>
-<main id="main"><section id="order" class="view"><div class="section-heading"><div><p class="eyebrow">РАБОТА С ГОСТЯМИ</p><h1>Новый заказ</h1></div><button class="quiet" id="historyButton">Мои заказы <span id="orderCount">0</span></button></div>
-<div class="order-grid"><div class="composer"><label for="orderInput">Заказ, блюдо или команда</label><textarea id="orderInput" rows="8" placeholder="1: хлеб, салат с уткой, овощное консоме&#10;2: салат с томатами, овощное консоме&#10;3: бифштекс, капучино"></textarea><div class="input-note">Одна персона — один номер. Сокращать можно.</div><div class="form-actions"><button class="primary" id="submitOrder">Разобрать заказ <span>↗</span></button><button class="quiet" id="exampleButton">Вставить пример</button></div><div id="orderError" class="error" role="alert"></div>
-<details class="recommendations"><summary>Что порекомендовать гостям</summary><p>Закуски: сердце оленя, карпаччо, шаньга.<br>Салаты: с уткой или зелёный.<br>Горячее: рыбник, муксун, говяжьи щёчки, бифштекс.<br>Десерты: чизкейк, наполеон.</p></details></div>
-<div class="quick-search"><p class="eyebrow">БЫСТРАЯ ПОДСКАЗКА</p><h2>Что это за блюдо?</h2><form id="quickForm"><label class="sr-only" for="quickInput">Название блюда или напитка</label><div class="search-box"><input id="quickInput" placeholder="ч облепиха · ч с ч · ростбиф??" autocomplete="off"><button aria-label="Найти" type="submit">↗</button></div></form><p>Один <strong>?</strong> — состав и скрипт.<br>Два <strong>??</strong> — наличие на сегодня.</p><div class="chips"><button data-query="консоме?">Консоме</button><button data-query="бифштекс?">Бифштекс</button><button data-query="соаве болла?">Соаве Болла</button></div><div id="quickResult"></div></div></div>
-<div id="plan"><div class="empty-plan"><span class="plate">◎</span><h2>Подача по порядку</h2><p>Здесь появятся курсы, блюда каждой персоны<br>и то, что нужно проговорить гостям.</p></div></div><div id="history" hidden></div></section>
-<section id="menu" class="view" hidden></section><section id="stock" class="view" hidden></section><section id="steaks" class="view" hidden></section><section id="settings" class="view" hidden></section>
-<footer>Дворцовая <span>Меню и скрипты · сентябрь 2026</span></footer></main></div>
-<dialog id="cardDialog"><button id="closeDialog" class="dialog-close" aria-label="Закрыть">×</button><div id="cardContent"></div></dialog><div id="toast" role="status" aria-live="polite"></div>
-<script src="./data.js?v=20260921-2"></script><script src="./engine.js?v=20260921-2"></script><script src="./storage.js?v=20260921-2"></script><script src="./app.js?v=20260921-2"></script></body></html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#522422">
+  <meta name="description" content="Помощник официанта Дворцовой: меню, скрипты, заказы и подача по курсам.">
+  <title>Дворцовая · Помощник официанта</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css?v=20261102-1">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#order">ДВОРЦОВАЯ<span>помощник официанта</span></a>
+  <button id="rushTop" class="status-button" type="button">Обычное ожидание <span>↗</span></button>
+</header>
+<div class="workspace">
+  <aside>
+    <div class="sidebar-label">ТВОЯ СМЕНА</div>
+    <nav aria-label="Разделы">
+      <button class="nav active" data-tab="order"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="3"/><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3"/></svg><span class="nav-label">Заказы</span></button>
+      <button class="nav" data-tab="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v16M12 5C8 2 4 3 2 4v15c4-1 7-1 10 2 3-3 6-3 10-2V4c-2-1-6-2-10 1Z"/></svg><span class="nav-label">Меню</span></button>
+      <button class="nav" data-tab="stock"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 2 2 4-4M13 7h7M4 16l4 4m0-4-4 4M13 18h7"/></svg><span class="nav-label">Стоп / гоу</span></button>
+      <button class="nav" data-tab="steaks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6c3-3 8-4 12-1s4 9 1 13-7 3-9 0-6-1-7-4 0-5 3-8Z"/><path d="m9 7 5 9M13 6l5 8M6 10l3 5"/></svg><span class="nav-label">Стейки</span></button>
+      <button class="nav" data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="nav-label">Ожидание</span></button>
+    </nav>
+    <div class="side-note"><span id="today"></span><p>Всё под рукой.</p><small>Меню, подсказки и подача.<br>Данные на этом устройстве.</small></div>
+  </aside>
+  <main id="main">
+    <section id="order" class="view">
+      <div class="section-heading">
+        <div><p class="eyebrow">РАБОТА С ГОСТЯМИ</p><h1>Заказы</h1></div>
+        <button class="quiet" id="historyButton">Мои заказы <span class="count" id="orderCount">0</span></button>
+      </div>
+      <div class="composer">
+        <div class="composer-heading"><label for="orderInput">Что заказали?</label><span id="inputMode" class="input-mode">По персонам</span></div>
+        <textarea id="orderInput" rows="4" placeholder="1: рыбник, бифштекс&#10;2: цез с крев, рыбник"></textarea>
+        <div class="composer-bottom"><p class="input-note" id="inputHint">Сокращай и пиши как удобно. Каждая персона — с нового номера.</p><div class="form-actions"><button class="quiet" id="cancelEdit" hidden>Отменить</button><button class="primary" id="submitOrder">Разобрать заказ <span aria-hidden="true">↗</span></button></div></div>
+        <div id="orderError" class="error" role="alert"></div>
+      </div>
+      <div class="quick-tools" aria-label="Быстрые примеры">
+        <span>В этом же поле:</span>
+        <button data-fill="ч облепиха?">Блюдо <strong>?</strong></button>
+        <button data-fill="рыбник??">Наличие <strong>??</strong></button>
+        <button data-fill="голубчики — 6">Остаток <strong>6</strong></button>
+        <button id="exampleButton">Пример заказа <span aria-hidden="true">↗</span></button>
+      </div>
+      <div id="quickResult" aria-live="polite"></div>
+      <details class="recommendations"><summary>Что порекомендовать гостям</summary><p>Закуски: сердце оленя, карпаччо, шаньга.<br>Салаты: с уткой или оливье с омулем.<br>Горячее: рыбник, муксун, говяжьи щёчки, бифштекс.<br>Десерты: черёмуховый медовик, наполеон.</p><div class="chips"><button data-query="уха?">Уха</button><button data-query="бифштекс?">Бифштекс</button><button data-query="соаве болла?">Соаве Болла</button></div></details>
+      <div id="plan"><div class="empty-plan"><span class="plate" aria-hidden="true">◎</span><h2>Сначала заказ. Дальше — по порядку.</h2><p>Покажу, что подать каждой персоне,<br>сколько ждать и что проговорить гостям.</p></div></div>
+      <div id="history" hidden></div>
+    </section>
+    <section id="menu" class="view" hidden></section>
+    <section id="stock" class="view" hidden></section>
+    <section id="steaks" class="view" hidden></section>
+    <section id="settings" class="view" hidden></section>
+    <footer>Дворцовая <span>Меню · 2 ноября 2026</span></footer>
+  </main>
+</div>
+<dialog id="cardDialog" aria-labelledby="cardTitle"><button id="closeDialog" class="dialog-close" aria-label="Закрыть">×</button><div id="cardContent"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="./data.js?v=20261102-1"></script>
+<script src="./engine.js?v=20261102-1"></script>
+<script src="./storage.js?v=20261102-1"></script>
+<script src="./app.js?v=20261102-1"></script>
+</body>
+</html>
