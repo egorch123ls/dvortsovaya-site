@@ -140,3 +140,5 @@ window.addEventListener('focus',()=>{const date=state.stock.date;W.daily(state);
 if(document.modelContext?.registerTool){try{document.modelContext.registerTool({name:'lookup_menu',description:'Найти блюдо или напиток и показать его карточку либо статус.',inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false},annotations:{readOnlyHint:true},execute(input){if(typeof input?.query!=='string'||input.query.length>150)throw Error('Ожидается короткое название.');const f=W.resolve(input.query);lookup(input.query);return f.dish?{name:W.byId[f.dish].name,status:W.stockLabel(W.stockStatus(state,f.dish,f.weight))}:{choices:f.choices.map(id=>W.byId[id].name)}}});}catch{}}
 updateTop();syncComposer();if(current())renderPlan();if(store.warning)toast(store.warning);
 })();
+
+$('#allergySupported').textContent=Allergy.catalog.map(r=>r.label).join(' · ');

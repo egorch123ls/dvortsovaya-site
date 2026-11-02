@@ -40,3 +40,14 @@ test('order exclusions persist across edit and migration, and warn on conflictin
  assert.equal(W.saveOrder(s,'1: рыбник').exclusionsText,'','new order does not inherit previous guest restrictions');
  const before=W.clone(s);assert.throws(()=>W.saveOrder(s,'1: рыбник',null,{exclusionsText:'x'.repeat(301)}));assert.deepEqual(s,before);
 });
+
+test('thirty supported groups recognize expanded exclusions and compound ingredients',()=>{
+ assert.equal(A.catalog.length,30);
+ for(const [query,ingredient] of [['лактоза','Сметана'],['молоко','Сыворотка'],['люпин','Люпиновая мука'],['сульфиты','E220'],['цитрусовые','Кумкват'],['клубника','Земляничное пюре'],['какао','Шоколадный крем'],['киви','Киви'],['бобовые','Бланшированный горошек'],['глютен','Овсяная мука'],['миндаль','Миндальная мука']]){
+  const terms=A.parse(query);assert.equal(terms[0].known,true,query);
+  assert.equal(A.assess({name:'Тест',ingredients:ingredient},terms).status,'contains',query);
+ }
+ assert.equal(A.parse('лактоза')[0].key,'lactose');assert.equal(A.parse('молоко')[0].key,'milk');
+ assert.equal(A.assess({name:'Вино',ingredients:'Виноград'},A.parse('сульфиты')).status,'unknown');
+ assert.equal(A.assess({name:'Молоко безлактозное',ingredients:'Безлактозное коровье молоко'},A.parse('молоко')).status,'contains');
+});
