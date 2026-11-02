@@ -25,11 +25,31 @@ test('tongue salad inherits confirmed dressing and excludes roast beef',()=>{
  const d=W.byId['salad-tongue'];assert.match(d.ingredients,/Говяжий язык/);assert.match(d.ingredients,/печёный перец/);
  assert.doesNotMatch(d.ingredients,/Ростбиф|тонкий край/i);
  for(const q of ['соя','кунжут','горчица'])assert.equal(Allergy.assess(d,Allergy.parse(q)).status,'contains');
- const duck=W.plan(W.parseOrder('1 утиная грудка'),W.newState());assert.ok(duck.say.some(s=>/вакуумном пакете.*водяной бане.*medium.*не кровь/.test(s)));
+ const duck=W.plan(W.parseOrder('1 утиная грудка'),W.newState());assert.ok(duck.say.some(s=>/технологии су-вид.*medium.*не кровь/.test(s)));
 });
 test('featured recommendations show two hot meals and salads, filtering stops and allergens',()=>{
  const s=W.newState(),r=Allergy.featured(s,'');assert.deepEqual(r.hot.map(x=>x.dish.id),['999668215a','cheeks-vegetables']);assert.equal(r.salads.length,2);
  StopNotes.apply(s,{'Горячее':'рыбник','Салаты':'оливье'});
  const filtered=Allergy.featured(s,'соя');for(const row of [...filtered.hot,...filtered.salads]){assert.notEqual(row.dish.id,'999668215a');assert.notEqual(row.dish.id,'olivier-omul');assert.equal(row.assessment.status,'not_listed');}
  assert.ok(!filtered.salads.some(r=>r.dish.id==='salad-tongue'));assert.ok(filtered.unknown.some(r=>r.dish.id==='cheeks-vegetables'));
+});
+test('single note field resolves category context, infers bar, and creates only populated groups',()=>{
+ const text='Салаты: муксун\nГорячее: биштекс стоп\nНастойка клубника 7\nСупы: уха';
+ const s=W.newState(),r=N.applyText(s,text);assert.equal(r.unknown.length,0);
+ assert.equal(r.entries.f6e82917cb.section,'Салаты');assert.equal(r.entries['214af081b8'].section,'Горячее');
+ assert.equal(r.entries['tincture-strawberry'].qty,7);assert.equal(r.entries['tincture-strawberry'].section,'Бар');assert.equal(r.entries['ukha-oil'].section,'Горячее');
+ assert.equal(N.textFor(W.migrateState(W.clone(s))),text);
+ W.saveOrder(s,'1 н клубника');N.applyText(s,text);assert.equal(W.stockStatus(s,'tincture-strawberry').qty,6);
+ N.applyText(s,'');assert.deepEqual(s.stock.items,{});assert.equal(Object.keys(N.parseText('').entries).length,0);
+ assert.equal(N.parseText('Салаты: утиная грудка').unknown.length,1,'salad context cannot stop the hot duck dish');
+ assert.throws(()=>N.parseText('x'.repeat(12001)));
+});
+test('recommendations cover food, cocktails, nonalcoholic drinks and two wines of each color',()=>{
+ const s=W.newState(),r=Allergy.featured(s);
+ for(const [key] of Allergy.featuredSections)assert.equal(r[key].length,2,key);
+ assert.deepEqual(r.cocktails.map(x=>x.dish.id),['cocktail-storyteller','cocktail-merchant']);
+ assert.ok(r.soft.every(x=>/Безалкогольный/.test(x.dish.description)));
+ assert.ok(r.red.every(x=>/Красн/.test(x.dish.wine_type)));assert.ok(r.white.every(x=>/Бел/.test(x.dish.wine_type)));
+ N.applyText(s,'Настойка клубника стоп');const after=Allergy.featured(s,'лактоза');assert.ok(after.tinctures.every(x=>x.dish.id!=='tincture-strawberry'));
+ assert.equal(Allergy.featured(s,'сульфиты').red.length,0);assert.ok(Allergy.featured(s,'сульфиты').unknown.some(x=>x.dish.id==='wine-chianti'));
 });

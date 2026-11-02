@@ -66,12 +66,14 @@ function recommend(state,text,category='',query=''){
  return result;
 }
 function orderChecks(order){const restrictions=parse(order.exclusionsText||'');if(!restrictions.length)return [];return order.items.map(row=>({row,dish:W.byId[row.dish],assessment:row.dish?assess(W.byId[row.dish],restrictions):{status:'unknown',found:[],uncertain:['Блюдо не распознано.']}}));}
+const featuredSections=[['hot','Горячее'],['salads','Салаты'],['starters','Закуски'],['soups','Супы'],['desserts','Десерты'],['tinctures','Авторские настойки'],['cocktails','Авторские коктейли'],['soft','Безалкогольные коктейли и напитки'],['red','Красные вина'],['white','Белые вина'],['sparkling','Игристые вина']];
+function featuredGroup(d){if(d.wine_type){if(/красн/i.test(d.wine_type))return 'red';if(/бел/i.test(d.wine_type))return 'white';if(/игрист/i.test(d.wine_type))return 'sparkling';return null;}if(d.section==='Настойки')return 'tinctures';if(d.section==='Коктейли')return /безалкогольн/i.test(d.description)?'soft':'cocktails';if(d.section==='Холодные напитки'||d.section==='Чай и горячие напитки')return 'soft';if(d.category==='soup')return 'soups';if(d.category==='dessert')return 'desserts';if(d.section==='Салаты')return 'salads';if(d.category==='hot')return 'hot';if(['cold','starter','oyster'].includes(d.category))return 'starters';return null;}
 function featured(state,text=''){
- const restrictions=parse(text),priority=['999668215a','cheeks-vegetables','5e30e7d68b','olivier-omul','salad-tongue'];
- const result={hot:[],salads:[],unknown:[],excluded:0};
+ const restrictions=parse(text),priority=['999668215a','cheeks-vegetables','5e30e7d68b','olivier-omul','salad-tongue','ukha-oil','rye-chowder','birdcherry-honeycake','b4ff26559b','tincture-strawberry','tincture-seabuckthorn','cocktail-storyteller','cocktail-merchant','cocktail-keykeeper','cocktail-ataman','wine-chianti','wine-tiefgang','wine-bolla','wine-vinhoverde'];
+ const result={...Object.fromEntries(featuredSections.map(([key])=>[key,[]])),unknown:[],excluded:0};
  const candidates=[...W.items].sort((a,b)=>(priority.includes(a.id)?priority.indexOf(a.id):99)-(priority.includes(b.id)?priority.indexOf(b.id):99));
- for(const dish of candidates){const group=dish.category==='hot'?'hot':dish.section==='Салаты'?'salads':null;if(!group)continue;if(W.stockStatus(state,dish.id).status==='stop'){result.excluded++;continue;}const assessment=assess(dish,restrictions);if(restrictions.length&&assessment.status==='contains'){result.excluded++;continue;}if(restrictions.length&&assessment.status==='unknown'){result.unknown.push({dish,assessment});continue;}if(result[group].length<2)result[group].push({dish,assessment});}
+ for(const dish of candidates){const group=featuredGroup(dish);if(!group)continue;if(W.stockStatus(state,dish.id).status==='stop'){result.excluded++;continue;}const assessment=assess(dish,restrictions);if(restrictions.length&&assessment.status==='contains'){result.excluded++;continue;}if(restrictions.length&&assessment.status==='unknown'){result.unknown.push({dish,assessment});continue;}if(result[group].length<2)result[group].push({dish,assessment});}
  return result;
 }
-root.Allergy={parse,assess,recommend,orderChecks,categoryQuery,featured,catalog:rules.map(r=>({key:r[0],label:r[1]}))};
+root.Allergy={parse,assess,recommend,orderChecks,categoryQuery,featured,featuredSections,catalog:rules.map(r=>({key:r[0],label:r[1]}))};
 })(globalThis);
