@@ -7,7 +7,7 @@
   <meta name="description" content="Помощник официанта Дворцовой: меню, скрипты, заказы и подача по курсам.">
   <title>Дворцовая · Помощник официанта</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css?v=20261102-4">
+  <link rel="stylesheet" href="./style.css?v=20261102-5">
 </head>
 <body>
 <header class="top">
@@ -19,9 +19,9 @@
     <div class="sidebar-label">ТВОЯ СМЕНА</div>
     <nav aria-label="Разделы">
       <button class="nav active" data-tab="order"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="3"/><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3"/></svg><span class="nav-label">Заказы</span></button>
+      <button class="nav" data-tab="stock"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 2 2 4-4M13 7h7M4 16l4 4m0-4-4 4M13 18h7"/></svg><span class="nav-label">Стоп</span></button>
       <button class="nav" data-tab="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v16M12 5C8 2 4 3 2 4v15c4-1 7-1 10 2 3-3 6-3 10-2V4c-2-1-6-2-10 1Z"/></svg><span class="nav-label">Меню</span></button>
-      <button class="nav" data-tab="stock"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 2 2 4-4M13 7h7M4 16l4 4m0-4-4 4M13 18h7"/></svg><span class="nav-label">Стоп / гоу</span></button>
-      <button class="nav" data-tab="steaks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6c3-3 8-4 12-1s4 9 1 13-7 3-9 0-6-1-7-4 0-5 3-8Z"/><path d="m9 7 5 9M13 6l5 8M6 10l3 5"/></svg><span class="nav-label">Стейки</span></button>
+      <button class="nav" data-tab="featured"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z"/></svg><span class="nav-label">Советуем</span></button>
       <button class="nav" data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="nav-label">Ожидание</span></button>
     </nav>
     <div class="side-note"><span id="today"></span><p>Всё под рукой.</p><small>Меню, подсказки и подача.<br>Данные на этом устройстве.</small></div>
@@ -42,7 +42,6 @@
         <span>В этом же поле:</span>
         <button data-fill="ч облепиха?">Блюдо <strong>?</strong></button>
         <button data-fill="рыбник??">Наличие <strong>??</strong></button>
-        <button data-fill="голубчики — 6">Остаток <strong>6</strong></button>
         <button id="exampleButton">Пример заказа <span aria-hidden="true">↗</span></button>
       </div>
       <div id="quickResult" aria-live="polite"></div><section id="allergySuggestions" aria-live="polite" hidden></section>
@@ -52,17 +51,19 @@
     </section>
     <section id="menu" class="view" hidden></section>
     <section id="stock" class="view" hidden></section>
-    <section id="steaks" class="view" hidden></section>
+    <section id="featured" class="view" hidden></section>
     <section id="settings" class="view" hidden></section>
     <footer>Дворцовая <span>Меню · 2 ноября 2026</span></footer>
   </main>
 </div>
+<dialog id="sayDialog" aria-labelledby="sayTitle"><button id="closeSay" class="dialog-close" aria-label="Закрыть напоминание">×</button><p class="eyebrow">ПЕРЕДАЙ ГОСТЯМ</p><h2 id="sayTitle">ПРОГОВОРИ</h2><div id="sayContent"></div></dialog>
 <dialog id="cardDialog" aria-labelledby="cardTitle"><button id="closeDialog" class="dialog-close" aria-label="Закрыть">×</button><div id="cardContent"></div></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="./data.js?v=20261102-4"></script>
-<script src="./engine.js?v=20261102-4"></script>
-<script src="./allergy.js?v=20261102-4"></script>
-<script src="./storage.js?v=20261102-4"></script>
-<script src="./app.js?v=20261102-4"></script>
+<script src="./data.js?v=20261102-5"></script>
+<script src="./engine.js?v=20261102-5"></script>
+<script src="./stopnotes.js?v=20261102-5"></script>
+<script src="./allergy.js?v=20261102-5"></script>
+<script src="./storage.js?v=20261102-5"></script>
+<script src="./app.js?v=20261102-5"></script>
 </body>
 </html>

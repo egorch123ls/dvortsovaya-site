@@ -6,7 +6,7 @@ test('soy includes soy sauce in salad dressing and chicken marinade',()=>{
  assert.ok(ids(r.contains).includes('5e30e7d68b'));assert.ok(ids(r.contains).includes('0a30d26be2'));
  assert.ok(r.contains.every(x=>x.assessment.found.some(f=>f.evidence.some(e=>/соев/.test(e)))));
  assert.ok(ids(r.not_listed).includes('olivier-omul'));assert.ok(ids(r.not_listed).includes('e55b292258'));
- assert.ok(ids(r.unknown).includes('salad-tongue'));assert.ok(ids(r.unknown).includes('f6e82917cb'));
+ assert.ok(ids(r.contains).includes('salad-tongue'));assert.ok(ids(r.unknown).includes('f6e82917cb'));
  assert.ok(!ids(r.not_listed).includes('5e30e7d68b'));
  for(const ingredient of ['Соя', 'соевый соус', 'мисо-паста', 'тофу', 'терияки'])assert.equal(A.assess({name:'Тест',ingredients:ingredient},A.parse('соя')).status,'contains');
  assert.equal(A.parse('соевый соус')[0].key,'soy');assert.equal(A.parse('аллергия на сою')[0].key,'soy');

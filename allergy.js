@@ -66,5 +66,12 @@ function recommend(state,text,category='',query=''){
  return result;
 }
 function orderChecks(order){const restrictions=parse(order.exclusionsText||'');if(!restrictions.length)return [];return order.items.map(row=>({row,dish:W.byId[row.dish],assessment:row.dish?assess(W.byId[row.dish],restrictions):{status:'unknown',found:[],uncertain:['Блюдо не распознано.']}}));}
-root.Allergy={parse,assess,recommend,orderChecks,categoryQuery,catalog:rules.map(r=>({key:r[0],label:r[1]}))};
+function featured(state,text=''){
+ const restrictions=parse(text),priority=['999668215a','cheeks-vegetables','5e30e7d68b','olivier-omul','salad-tongue'];
+ const result={hot:[],salads:[],unknown:[],excluded:0};
+ const candidates=[...W.items].sort((a,b)=>(priority.includes(a.id)?priority.indexOf(a.id):99)-(priority.includes(b.id)?priority.indexOf(b.id):99));
+ for(const dish of candidates){const group=dish.category==='hot'?'hot':dish.section==='Салаты'?'salads':null;if(!group)continue;if(W.stockStatus(state,dish.id).status==='stop'){result.excluded++;continue;}const assessment=assess(dish,restrictions);if(restrictions.length&&assessment.status==='contains'){result.excluded++;continue;}if(restrictions.length&&assessment.status==='unknown'){result.unknown.push({dish,assessment});continue;}if(result[group].length<2)result[group].push({dish,assessment});}
+ return result;
+}
+root.Allergy={parse,assess,recommend,orderChecks,categoryQuery,featured,catalog:rules.map(r=>({key:r[0],label:r[1]}))};
 })(globalThis);
